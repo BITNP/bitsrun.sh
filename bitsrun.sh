@@ -153,8 +153,12 @@ get_token() {
 }
 
 get_acid() {
-    # TODO
-    echo -n 8
+    local acid=$(curl -L -s http://t.tt | grep ac_id | sed -n 's/.*value="\([^"]*\)".*/\1/p')
+    if [ -z "$acid" ]; then
+        echo -n 1
+    else
+        echo $acid
+    fi
 }
 
 login() {
