@@ -164,29 +164,27 @@ get_acid() {
 login() {
     local username=$1
     local password=$2
-    local acid=$3
-    local ip=$4
-    local online=$5
-    if [ -z $online ]; then
-        # prepare params
-        local token=$(get_token $username $ip)
-        local token_md5=($(echo -n $token | md5sum))
-        local json_data="{\"username\":\"$username\",\"password\":\"$password\",\"acid\":\"$acid\",\"ip\":\"$ip\",\"enc_ver\":\"srun_bx1\"}"
-        local info="{SRBX1}$(xencode "$json_data" "$token" | fkbase64 )"
-        local checksum=($(echo -n "${token}${username}${token}${token_md5}${token}${acid}${token}${ip}${token}200${token}1${token}${info}" | sha1sum))
-        local password_enc="{MD5}$token_md5"
-        # urlencode params
-        password_enc=$(urlencode "$password_enc")
-        info=$(urlencode "$info")
-        # call srun server
-        local jsonp=$(curl -s "${API_BASE}/cgi-bin/srun_portal?callback=jsonp&action=login&username=$username&ac_id=$acid&ip=$ip&type=1&n=200&password=$password_enc&chksum=$checksum&info=$info")
-        local usererror=$(get_json_value "$jsonp" "error")
-        local srunmsg=$(get_json_value "$jsonp" "suc_msg")
-        # result
-        echo ${API_BASE} reports $usererror $srunmsg
-    else
-        echo ${API_BASE} reports already online, stop
-    fi
+    local ip=$3
+
+    # get ac_id
+    local acid=$(get_acid)
+    # get srun token
+    local token=$(get_token $username $ip)
+    local token_md5=($(echo -n $token | md5sum))
+    # prepare params
+    local json_data="{\"username\":\"$username\",\"password\":\"$password\",\"acid\":\"$acid\",\"ip\":\"$ip\",\"enc_ver\":\"srun_bx1\"}"
+    local info="{SRBX1}$(xencode "$json_data" "$token" | fkbase64 )"
+    local checksum=($(echo -n "${token}${username}${token}${token_md5}${token}${acid}${token}${ip}${token}200${token}1${token}${info}" | sha1sum))
+    local password_enc="{MD5}$token_md5"
+    # urlencode params
+    password_enc=$(urlencode "$password_enc")
+    info=$(urlencode "$info")
+    # call srun server
+    local jsonp=$(curl -s "${API_BASE}/cgi-bin/srun_portal?callback=jsonp&action=login&username=$username&ac_id=$acid&ip=$ip&type=1&n=200&password=$password_enc&chksum=$checksum&info=$info")
+    local usererror=$(get_json_value "$jsonp" "error")
+    local srunmsg=$(get_json_value "$jsonp" "suc_msg")
+    # result
+    echo ${API_BASE} reports $usererror $srunmsg
 }
 
 logout() {
@@ -198,8 +196,15 @@ logout() {
 if [ "$1" = "login" ]; then
     username=$2
     password=$3
+
     if [ -z "$username" ]; then
         echo "login requires username"
+        exit 1
+    fi
+
+    login_status=$(get_login_status)
+    if [[ "$login_status" =~ "online" ]]; then
+        echo ${API_BASE} reports already online, stop
         exit 1
     fi
     if [ -z "$password" ]; then
@@ -207,7 +212,7 @@ if [ "$1" = "login" ]; then
         read -s password
         echo ""
     fi
-    login "$username" "$password" $(get_acid) $(get_login_status)
+    login "$username" "$password" $login_status
 elif [ "$1" = "logout" ]; then
     logout
 elif [ "$1" = "status" ]; then
